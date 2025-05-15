@@ -24,7 +24,7 @@ function MeshBackdropBase({
   getPalette,
   blur = 80,
   fps = 30,
-  speed = 2,
+  speed = 1,
 }: PropsWithChildren<MeshBackdropProps>) {
   const palette   = useCoverPalette(getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
