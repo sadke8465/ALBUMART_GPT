@@ -9,7 +9,7 @@
   "dependencies": {
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "mesh-gradient.js": "^1.0.1",
+    "mesh-gradient.js": "^0.0.5",
     "colorthief": "^2.3.2"
   },
   "devDependencies": {
