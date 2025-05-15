@@ -3,19 +3,15 @@ import {
   useRef,
   useState,
   memo,
-  type MutableRefObject,
   type PropsWithChildren,
 } from "react";
-import MeshGradient from "mesh-gradient.js";      // ≈6 kB gzip  [oai_citation:0‡GitHub](https://github.com/anup-a/mesh-gradient.js/)
+import MeshGradient from "mesh-gradient.js";
 import { useCoverPalette } from "./useCoverPalette";
 
 export interface MeshBackdropProps {
-  /** Utility used mainly for testing – defaults to ColorThief palette */
   getPalette?: (img: HTMLImageElement) => string[];
-  /** Canvas `shadowBlur` (px) applied inside the fragment shader. Default 80. */
-  blur?: number;
-  /** Max frame-rate for the rAF loop. Default 30 fps. */
-  fps?: number;
+  blur?: number;          // default 80
+  fps?: number;           // default 30
 }
 
 function MeshBackdropBase({
@@ -23,32 +19,32 @@ function MeshBackdropBase({
   blur = 80,
   fps = 30,
 }: PropsWithChildren<MeshBackdropProps>) {
-  const palette = useCoverPalette(getPalette);
+  const palette   = useCoverPalette(getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const meshRef = useRef<MeshGradient | null>(null);
+  const meshRef   = useRef<MeshGradient | null>(null);
   const lastFrame = useRef(0);
 
-  /** Pause when tab is hidden or user asks for reduced motion */
   const isActive = () =>
     !document.hidden &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Initialise / resize
+  /* ─────────── init / resize ─────────── */
   useEffect(() => {
     const cvs = canvasRef.current;
     if (!cvs) return;
 
-    // Full-viewport fixed canvas – sits *under* the existing layout
-    cvs.width = window.innerWidth;
+    cvs.width  = window.innerWidth;
     cvs.height = window.innerHeight;
 
     const mesh = new MeshGradient();
-    mesh.initGradient(cvs, palette);    // first paint
+
+    /* 🔑 FIX ① – pass selector string, not element */
+    mesh.initGradient("#meshCanvas", palette);
+
     meshRef.current = mesh;
 
-    // Resize listener
     const onResize = () => {
-      cvs.width = window.innerWidth;
+      cvs.width  = window.innerWidth;
       cvs.height = window.innerHeight;
       mesh.setCanvasSize(cvs.width, cvs.height);
     };
@@ -58,44 +54,40 @@ function MeshBackdropBase({
       window.removeEventListener("resize", onResize);
       mesh.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount once
 
-  // 60 s recolour hook
+  /* ─────────── recolour every cover swap ─────────── */
   useEffect(() => {
-    if (!meshRef.current) return;
-    meshRef.current.changeGradientColors(palette);
+    meshRef.current?.changeGradientColors(palette);
   }, [palette]);
 
-  // Animation loop (ease-in-out, 20 s)
+  /* ─────────── animation loop (20 s drift @ ≤ fps) ─────────── */
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
-    let frame = 0;
     let rafId = 0;
-
     const loop = (t: number) => {
       if (!isActive()) {
         rafId = requestAnimationFrame(loop);
         return;
       }
-
       const dt = t - lastFrame.current;
       if (dt > 1000 / fps) {
         lastFrame.current = t;
-        mesh.uniforms.u_time.value += dt / 1000; // seconds
-        mesh.reGenerateCanvas(); // draws one frame
+        mesh.uniforms.u_time.value += dt / 1000;
+        mesh.reGenerateCanvas();
       }
       rafId = requestAnimationFrame(loop);
     };
     rafId = requestAnimationFrame(loop);
-
     return () => cancelAnimationFrame(rafId);
   }, [fps]);
 
+  /* ─────────── JSX ─────────── */
   return (
     <canvas
+      id="meshCanvas"            /* 🔑 FIX ② – give canvas an id the lib can query */
       ref={canvasRef}
       style={{
         position: "fixed",
