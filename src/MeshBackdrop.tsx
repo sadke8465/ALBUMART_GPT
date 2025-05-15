@@ -7,42 +7,36 @@ import {
 import MeshGradient from "mesh-gradient.js";
 import { useCoverPalette } from "./useCoverPalette";
 
-/* ───────── component props ───────── */
+/* ───────── props ───────── */
 export interface MeshBackdropProps {
-  /** test-hook palette override */
   getPalette?: (img: HTMLImageElement) => string[];
-  /** CSS blur applied to the canvas */
-  blur?: number;          // default 80
-  /** frame-rate cap */
-  fps?: number;           // default 30
-  /** animation speed multiplier (1 = original, 2 = twice as fast, 0.5 = slower) */
-  speed?: number;         // default 1
+  blur?:   number;  // px   (default 80)
+  fps?:    number;  // cap  (default 30)
+  speed?:  number;  // 1 = original, 10 = 10× faster, 0.5 = slower
 }
 
-/* ───────── functional component ───────── */
+/* ───────── component ───────── */
 function MeshBackdropBase({
   getPalette,
-  blur = 80,
-  fps = 30,
+  blur  = 80,
+  fps   = 30,
   speed = 1,
 }: PropsWithChildren<MeshBackdropProps>) {
   const palette   = useCoverPalette(getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const meshRef   = useRef<MeshGradient | null>(null);
-  const lastFrame = useRef(0);
 
-  /* helper: should we animate this frame? */
+  /* pause when tab hidden or user prefers-reduced-motion */
   const isActive = () =>
     !document.hidden &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ───────── mount / resize ───────── */
+  /* ── mount & resize (Hi-DPI-safe) ── */
   useEffect(() => {
     const cvs = canvasRef.current;
     if (!cvs) return;
 
     const dpr = window.devicePixelRatio || 1;
-
     const resize = () => {
       cvs.width  = window.innerWidth  * dpr;
       cvs.height = window.innerHeight * dpr;
@@ -50,7 +44,7 @@ function MeshBackdropBase({
       cvs.style.height = "100vh";
       meshRef.current?.setCanvasSize(cvs.width, cvs.height);
     };
-    resize(); // initial
+    resize();
 
     const mesh = new MeshGradient();
     mesh.initGradient("#meshCanvas", palette);
@@ -61,37 +55,37 @@ function MeshBackdropBase({
       window.removeEventListener("resize", resize);
       mesh.disconnect();
     };
-  }, []); // run once
+  }, []); // mount once
 
-  /* ───────── recolour on palette change ───────── */
+  /* recolour whenever palette changes */
   useEffect(() => {
     meshRef.current?.changeGradientColors(palette);
   }, [palette]);
 
-  /* ───────── animation loop ───────── */
+  /* ── animation loop: *always* advance by speed/fps per tick ── */
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
+    const frameStep = speed / fps;          // seconds of shader-time per tick
+    const frameMs   = 1000 / fps;
+    let last = performance.now();
     let rafId = 0;
-    const loop = (t: number) => {
-      if (!isActive()) {
-        rafId = requestAnimationFrame(loop);
-        return;
-      }
-      const dt = t - lastFrame.current;
-      if (dt > 1000 / fps) {
-        lastFrame.current = t;
-        mesh.uniforms.u_time.value += (dt / 1000) * speed; // ⇐ speed tweak
+
+    const draw = (now: number) => {
+      rafId = requestAnimationFrame(draw);
+      if (!isActive()) return;
+      if (now - last >= frameMs) {
+        last = now;
+        mesh.uniforms.u_time.value += frameStep;
         mesh.reGenerateCanvas();
       }
-      rafId = requestAnimationFrame(loop);
     };
-    rafId = requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
   }, [fps, speed]);
 
-  /* ───────── JSX ───────── */
+  /* ── render ── */
   return (
     <canvas
       id="meshCanvas"
@@ -99,7 +93,7 @@ function MeshBackdropBase({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 0,              // in front of <body> but behind UI layers
+        zIndex: 0,              // sits above <body>, beneath UI layers
         filter: `blur(${blur}px)`,
         pointerEvents: "none",
       }}
