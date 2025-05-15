@@ -7,7 +7,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import MeshGradient from "mesh-gradient.js";      // ≈6 kB gzip  [oai_citation:0‡GitHub](https://github.com/anup-a/mesh-gradient.js/)
-import { useCoverPalette } from "@/hooks/useCoverPalette";
+import { useCoverPalette } from "./useCoverPalette";
 
 export interface MeshBackdropProps {
   /** Utility used mainly for testing – defaults to ColorThief palette */
