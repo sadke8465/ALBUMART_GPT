@@ -92,7 +92,7 @@ function MeshBackdropBase({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: -1,
+        zIndex: 0,
         filter: `blur(${blur}px)`,
         pointerEvents: "none",
       }}
