@@ -8,8 +8,8 @@ export default function App() {
       {/* Foreground UI: album-art, zoom effects, etc. */}
       <NowPlayingArt />
 
-      {/* Background animated mesh gradient */}
-      <MeshBackdrop />
+      {/* 10× faster animation — adjust to taste (e.g. 5, 20, 50) */}
+      <MeshBackdrop speed={10} />
     </>
   );
 }
