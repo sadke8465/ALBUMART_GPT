@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import styles from "./page.module.css"
 
-/* helper: convert remote cover URL → CORS-safe blob URL so ColorThief works */
+/* helper: convert remote cover URL → CORS‑safe blob URL so ColorThief works */
 async function toBlobURL(src: string) {
   const blob = await fetch(src, { mode: "cors" }).then(r => r.blob())
   return URL.createObjectURL(blob)
@@ -20,22 +20,25 @@ export default function NowPlayingArt() {
     },
   ])
 
-  const lastAlbumArtRef      = useRef("/placeholder.svg?height=500&width=775")
+  const lastAlbumArtRef        = useRef("/placeholder.svg?height=500&width=775")
   const [transitioning, setTransitioning] = useState(false)
-  const currentTrackIdRef    = useRef("")
-  const transitionTimerRef   = useRef<NodeJS.Timeout | null>(null)
+  const currentTrackIdRef      = useRef("")
+  const transitionTimerRef     = useRef<NodeJS.Timeout | null>(null)
 
-  /* zoom animation refs (kept from your original) */
+  /* zoom animation refs */
   const [zoomActive, setZoomActive]   = useState(false)
   const [zoomQuadrant, setZoomQuadrant] = useState(0)
-  const zoomTimerRef          = useRef<NodeJS.Timeout | null>(null)
-  const zoomKeyPressedRef     = useRef(false)
-  const autoZoomIntervalRef   = useRef<NodeJS.Timeout | null>(null)
+  const zoomTimeoutsRef        = useRef<NodeJS.Timeout[]>([])
+  const zoomKeyPressedRef      = useRef(false)
+  const autoZoomIntervalRef    = useRef<NodeJS.Timeout | null>(null)
+
+  /* blob‑URL bookkeeping so we can revoke() and free memory */
+  const lastBlobUrlRef         = useRef<string | null>(null)
 
   const lastfmURL =
     "https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=Noamsadi95&api_key=f12a1d5a9aad4c0d570403a0aabc9f61&format=json"
 
-  /* ───────────── album-art resolver (unchanged logic) ───────────── */
+  /* ───────────── album‑art resolver (unchanged logic) ───────────── */
   async function getAlbumArt(
     artist: string,
     title: string,
@@ -69,14 +72,20 @@ export default function NowPlayingArt() {
     return "/placeholder.svg?height=500&width=775"
   }
 
-  /* ───────────── helper: push new track & cross-fade ───────────── */
+  /* ───────────── helper: push new track & cross‑fade ───────────── */
   const addTrack = (title: string, artist: string, img: string) => {
-    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    /* limit DOM to previous + current = max 2 layers */
+    setTracks(cur => {
+      const prev = cur[cur.length - 1]
+      const next = { title, artist, imageUrl: img, key: `${title}-${artist}-${Date.now()}` }
+      return prev ? [prev, next] : [next]
+    })
+
     setTransitioning(true)
 
-    setTracks(cur => [...cur, { title, artist, imageUrl: img, key: `${title}-${artist}-${Date.now()}` }])
-
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
     transitionTimerRef.current = setTimeout(() => {
+      /* after fade keep only the new top layer */
       setTracks(cur => [cur[cur.length - 1]])
       setTransitioning(false)
     }, 1000)
@@ -85,7 +94,12 @@ export default function NowPlayingArt() {
   /* ───────────── dispatch coverChanged for MeshBackdrop ───────────── */
   async function fireCoverChanged(rawImg: string) {
     try {
+      /* free previous blob URL & texture */
+      if (lastBlobUrlRef.current) URL.revokeObjectURL(lastBlobUrlRef.current)
+
       const safeURL = await toBlobURL(rawImg)
+      lastBlobUrlRef.current = safeURL
+
       window.dispatchEvent(
         new CustomEvent("coverChanged", { detail: { url: safeURL } }),
       )
@@ -124,20 +138,31 @@ export default function NowPlayingArt() {
     }
   }
 
-  /* ───────────── zoom animation helpers (kept) ───────────── */
+  /* ───────────── zoom animation helpers ───────────── */
   const startZoom = () => {
+    /* prevent stacking runs */
     if (zoomActive) return
-    setZoomActive(true); setZoomQuadrant(1)
+    setZoomActive(true)
+    setZoomQuadrant(1)
+
+    /* clear any old pending timeouts */
+    zoomTimeoutsRef.current.forEach(id => clearTimeout(id))
+    zoomTimeoutsRef.current = []
 
     const step = () =>
       setZoomQuadrant(q => (q >= 4 ? (setTimeout(() => setZoomActive(false), 3000), 0) : q + 1))
 
     const dur = 12000
-    for (let i = 1; i <= 4; i++) zoomTimerRef.current = setTimeout(step, i * dur)
+    for (let i = 1; i <= 4; i++) {
+      const id = setTimeout(step, i * dur)
+      zoomTimeoutsRef.current.push(id)
+    }
   }
+
   const onKey = (e: KeyboardEvent) => {
     if (e.key.toLowerCase() === "a" && !zoomKeyPressedRef.current) {
-      zoomKeyPressedRef.current = true; startZoom()
+      zoomKeyPressedRef.current = true
+      startZoom()
     }
   }
   const onKeyUp = (e: KeyboardEvent) => {
@@ -154,13 +179,17 @@ export default function NowPlayingArt() {
     autoZoomIntervalRef.current = setInterval(startZoom, 120000)
 
     return () => {
+      /* clear everything */
       clearInterval(poll)
       clearTimeout(autoStart)
       if (autoZoomIntervalRef.current) clearInterval(autoZoomIntervalRef.current)
-      if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
+      zoomTimeoutsRef.current.forEach(id => clearTimeout(id))
       if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
       window.removeEventListener("keydown", onKey)
       window.removeEventListener("keyup", onKeyUp)
+
+      /* free last blob url */
+      if (lastBlobUrlRef.current) URL.revokeObjectURL(lastBlobUrlRef.current)
     }
   }, [])
 
@@ -198,6 +227,7 @@ export default function NowPlayingArt() {
                 width={775}
                 height={500}
                 alt="Album Art"
+                decoding="async"
                 className={styles.albumImage}
                 style={{ objectFit: "fill" }}
               />
