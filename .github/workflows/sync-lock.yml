@@ -17,15 +17,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'false'      # ←-- DISABLE CACHE so no lock-file is required
 
-      # 1) generate *only* the lockfile (no node_modules needed)
-      # 2) ensure npm is allowed to create it
+      # Generate *only* the lock file (fast; no node_modules)
       - name: Generate package-lock.json
         run: |
           npm config set package-lock true
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      # commit & push (force-add in case .gitignore excludes it)
+      # Commit & push, force-adding in case .gitignore blocks it
       - name: Commit updated lockfile
         run: |
           git config user.name  "github-actions[bot]"
@@ -36,9 +36,9 @@ jobs:
             if git diff --cached --quiet; then
               echo "Nothing to commit"
             else
-              git commit -m "chore: sync lockfile"
+              git commit -m "chore: generate package-lock.json"
               git push
             fi
           else
-            echo "package-lock.json was not created – aborting." && exit 1
+            echo "package-lock.json was not created" && exit 1
           fi
