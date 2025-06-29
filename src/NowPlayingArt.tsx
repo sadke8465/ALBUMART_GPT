@@ -149,7 +149,32 @@ export default function NowPlayingArt() {
   }
 
   /* ───────── zoom helpers (unchanged) ───────── */
-  // ... startZoom, onKey, onKeyUp exactly as before ...
+  const startZoom = () => {
+    if (zoomKeyPressedRef.current) return;
+    
+    const quadrant = Math.floor(Math.random() * 4) + 1;
+    setZoomQuadrant(quadrant);
+    setZoomActive(true);
+    
+    const timeout = setTimeout(() => {
+      setZoomActive(false);
+    }, 12000);
+    
+    zoomTimeoutsRef.current.push(timeout);
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'z' || e.key === 'Z') {
+      zoomKeyPressedRef.current = true;
+      startZoom();
+    }
+  };
+
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key === 'z' || e.key === 'Z') {
+      zoomKeyPressedRef.current = false;
+    }
+  };
 
   /* ───────── lifecycle setup (mostly unchanged) ───────── */
   useEffect(() => {

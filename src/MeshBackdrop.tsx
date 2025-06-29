@@ -15,6 +15,8 @@ export interface MeshBackdropProps {
   getPalette?: (img: HTMLImageElement) => string[];
   /** CSS blur radius in px (default = 80). */
   blur?: number;
+  /** Animation speed multiplier (default = 1). */
+  speed?: number;
 }
 
 /* ───────── component ───────── */
@@ -22,10 +24,11 @@ function MeshBackdropBase({
   src,
   getPalette,
   blur = 80,
+  speed = 1,
 }: PropsWithChildren<MeshBackdropProps>) {
   const palette   = useCoverPalette(src, getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const meshRef   = useRef<MeshGradient | null>(null);
+  const meshRef   = useRef<typeof MeshGradient | null>(null);
 
   /* mount & resize (Hi-DPI safe) */
   useEffect(() => {

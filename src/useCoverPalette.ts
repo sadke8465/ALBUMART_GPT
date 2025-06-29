@@ -33,7 +33,7 @@ export function useCoverPalette(
       let cols = raw.map(c => chroma(...c));
 
       /* 2. ditch low-saturation greys */
-      cols = cols.filter(c => c.saturation() > 0.15);
+      cols = cols.filter(c => c.get('hsl.s') > 0.15);
       if (cols.length < 3) cols = raw.map(c => chroma(...c)); // fallback
 
       /* 3. sort bright → dark */

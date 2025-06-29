@@ -9,7 +9,7 @@ export default function App() {
       <NowPlayingArt />
 
       {/* 10× faster animation — adjust to taste (e.g. 5, 20, 50) */}
-      <MeshBackdrop speed={10} />
+      <MeshBackdrop src={null} speed={10} />
     </>
   );
 }
