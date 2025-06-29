@@ -1,13 +1,13 @@
 name: Sync lockfile
 
 on:
-  workflow_dispatch:   # so you trigger it manually
+  workflow_dispatch:          # run manually from the Actions tab
 
 jobs:
   update-lock:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # allow the job to push back
+      contents: write         # allow pushing back to the repo
 
     steps:
       - uses: actions/checkout@v4
@@ -18,17 +18,27 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm install --no-audit --no-fund
+      # 1) generate *only* the lockfile (no node_modules needed)
+      # 2) ensure npm is allowed to create it
+      - name: Generate package-lock.json
+        run: |
+          npm config set package-lock true
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      # commit & push only if package-lock.json changed
+      # commit & push (force-add in case .gitignore excludes it)
       - name: Commit updated lockfile
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet package-lock.json; then
-            echo "Nothing to commit"
+
+          if [ -f package-lock.json ]; then
+            git add -f package-lock.json
+            if git diff --cached --quiet; then
+              echo "Nothing to commit"
+            else
+              git commit -m "chore: sync lockfile"
+              git push
+            fi
           else
-            git add package-lock.json
-            git commit -m "chore: sync lockfile"
-            git push
+            echo "package-lock.json was not created – aborting." && exit 1
           fi
