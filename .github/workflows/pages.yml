@@ -1,39 +1,27 @@
-name: Sync lockfile
-
+name: Build & Deploy to GitHub PagesAdd commentMore actions
 on:
-  workflow_dispatch:          # run manually from the Actions tab
 
+  push: { branches: [main] }
+  workflow_dispatch:
+concurrency:
+  group: pages
+  cancel-in-progress: true
 jobs:
-  update-lock:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write         # allow pushing back to the repo
-
+    permissions: { contents: read, pages: write, id-token: write }
     steps:
-      # --- checkout ---
       - uses: actions/checkout@v4
-
-      # --- Node (cache OFF) ---
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "false"      # ← mandatory; disables the auto-cache logic
-
-      # --- generate lock-file only ---
-      - name: Generate package-lock.json
-        run: |
-          npm config set package-lock true
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-      # --- commit & push ---
-      - name: Commit updated lockfile
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f package-lock.json
-          if git diff --cached --quiet; then
-            echo "Nothing to commit"
-          else
-            git commit -m "chore: generate package-lock.json"
-            git push
-          fi
+        with: { node-version: 20, cache: "npm" }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions: { pages: write, id-token: write }
