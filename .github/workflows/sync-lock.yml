@@ -1,7 +1,7 @@
 name: Sync lockfile
 
 on:
-  workflow_dispatch:          # run manually from the Actions tab
+  workflow_dispatch:          # trigger manually from the Actions tab
 
 jobs:
   update-lock:
@@ -10,22 +10,21 @@ jobs:
       contents: write         # allow pushing back to the repo
 
     steps:
+      # --- checkout ---
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
 
+      # --- Node toolchain (NO cache input) ---
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'false'      # ←-- DISABLE CACHE so no lock-file is required
 
-      # Generate *only* the lock file (fast; no node_modules)
+      # --- generate lock-file only (fast) ---
       - name: Generate package-lock.json
         run: |
           npm config set package-lock true
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      # Commit & push, force-adding in case .gitignore blocks it
+      # --- commit & push (force-add if ignored) ---
       - name: Commit updated lockfile
         run: |
           git config user.name  "github-actions[bot]"
