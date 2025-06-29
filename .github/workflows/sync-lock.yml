@@ -1,7 +1,7 @@
 name: Sync lockfile
 
 on:
-  workflow_dispatch:          # trigger manually from the Actions tab
+  workflow_dispatch:          # run manually from the Actions tab
 
 jobs:
   update-lock:
@@ -13,31 +13,27 @@ jobs:
       # --- checkout ---
       - uses: actions/checkout@v4
 
-      # --- Node toolchain (NO cache input) ---
+      # --- Node (cache OFF) ---
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "false"      # ← mandatory; disables the auto-cache logic
 
-      # --- generate lock-file only (fast) ---
+      # --- generate lock-file only ---
       - name: Generate package-lock.json
         run: |
           npm config set package-lock true
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      # --- commit & push (force-add if ignored) ---
+      # --- commit & push ---
       - name: Commit updated lockfile
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [ -f package-lock.json ]; then
-            git add -f package-lock.json
-            if git diff --cached --quiet; then
-              echo "Nothing to commit"
-            else
-              git commit -m "chore: generate package-lock.json"
-              git push
-            fi
+          git add -f package-lock.json
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
           else
-            echo "package-lock.json was not created" && exit 1
+            git commit -m "chore: generate package-lock.json"
+            git push
           fi
