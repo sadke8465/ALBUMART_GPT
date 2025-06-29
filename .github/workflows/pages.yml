@@ -1,45 +1,32 @@
-name: Deploy to GitHub Pages
-
-on:
-  # Build on every push to the default branch
-  push:
-    branches: [ "main" ]
-  # and when you trigger it manually
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # ── checkout source ──
       - uses: actions/checkout@v4
 
+      # ── Node toolchain (cache OFF so no lock file required) ──
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: npm
+          node-version: 20
+          cache: "false"           # 📌 turn off lock-file check
 
-      - run: npm ci              # install from package-lock.json
-      - run: npm run build       # vite build → dist
+      # ── install deps ──
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "Lock file detected – using npm ci"
+            npm ci
+          else
+            echo "No lock file – using npm install"
+            npm install --no-audit --no-fund
+          fi
 
+      # ── build site (Vite) ──
+      - run: npm run build
+
+      # ── upload for Pages ──
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist             # vite’s default output dir
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          path: dist
