@@ -22,11 +22,10 @@ jobs:
       # ── checkout source ──
       - uses: actions/checkout@v4
 
-      # ── Node toolchain (cache OFF so no lock file required) ──
+      # ── Node toolchain ──
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "false"           # 📌 turn off lock-file check
 
       # ── install deps ──
       - name: Install dependencies
