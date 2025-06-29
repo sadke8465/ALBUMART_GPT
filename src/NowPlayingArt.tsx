@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { MeshBackdrop }          from "./MeshBackdrop"; // new
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { MeshBackdrop }          from "./MeshBackdrop";
 import styles                    from "./page.module.css";
 
 /* helper: convert remote cover URL → CORS-safe blob URL */
@@ -23,7 +23,7 @@ export default function NowPlayingArt() {
 
   const [coverUrl, setCoverUrl] = useState(
     "/placeholder.svg?height=500&width=775",
-  ); // NEW
+  );
 
   const lastAlbumArtRef        = useRef("/placeholder.svg?height=500&width=775");
   const [transitioning, setTransitioning] = useState(false);
@@ -40,16 +40,19 @@ export default function NowPlayingArt() {
   /* blob-URL bookkeeping */
   const lastBlobUrlRef         = useRef<string | null>(null);
 
-  const lastfmURL =
-    "https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=Noamsadi95&api_key=f12a1d5a9aad4c0d570403a0aabc9f61&format=json";
+  /* Memoize the Last.fm URL to prevent unnecessary re-creation */
+  const lastfmURL = useMemo(() => 
+    "https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=Noamsadi95&api_key=f12a1d5a9aad4c0d570403a0aabc9f61&format=json",
+    []
+  );
 
-  /* ───────────── album-art resolver (unchanged) ───────────── */
-  async function getAlbumArt(
+  /* ───────────── album-art resolver (optimized) ───────────── */
+  const getAlbumArt = useCallback(async (
     artist: string,
     title: string,
     album: string,
     trackObj: any,
-  ) {
+  ) => {
     const pickXL = (list: any[]) =>
       list?.find((img) => img.size === "extralarge")?.["#text"] || "";
 
@@ -79,10 +82,10 @@ export default function NowPlayingArt() {
     } catch {}
 
     return "/placeholder.svg?height=500&width=775";
-  }
+  }, []);
 
-  /* ───────── addTrack + cross-fade (unchanged) ───────── */
-  const addTrack = (title: string, artist: string, img: string) => {
+  /* ───────── addTrack + cross-fade (optimized) ───────── */
+  const addTrack = useCallback((title: string, artist: string, img: string) => {
     setTracks(cur => {
       const prev = cur[cur.length - 1];
       const next = {
@@ -101,24 +104,24 @@ export default function NowPlayingArt() {
       setTracks(cur => [cur[cur.length - 1]]);
       setTransitioning(false);
     }, 1000);
-  };
+  }, []);
 
-  /* ───────── updateCoverUrl (was fireCoverChanged) ───────── */
-  async function updateCoverUrl(rawImg: string) {
+  /* ───────── updateCoverUrl (optimized) ───────── */
+  const updateCoverUrl = useCallback(async (rawImg: string) => {
     try {
       if (lastBlobUrlRef.current)
         URL.revokeObjectURL(lastBlobUrlRef.current);
 
       const safeURL = await toBlobURL(rawImg);
       lastBlobUrlRef.current = safeURL;
-      setCoverUrl(safeURL);               // NEW
+      setCoverUrl(safeURL);
     } catch (e) {
       console.warn("coverUrl update failed:", e);
     }
-  }
+  }, []);
 
-  /* ───────── poll Last.fm ───────── */
-  async function updateNowPlaying() {
+  /* ───────── poll Last.fm (optimized with debouncing) ───────── */
+  const updateNowPlaying = useCallback(async () => {
     try {
       const data = await fetch(lastfmURL).then(r => r.json());
       const now = data?.recenttracks?.track?.find(
@@ -137,7 +140,7 @@ export default function NowPlayingArt() {
 
           addTrack(title, artist, rawImg);
           currentTrackIdRef.current = id;
-          updateCoverUrl(rawImg);         // NEW
+          updateCoverUrl(rawImg);
         }
       } else if (currentTrackIdRef.current !== "not-playing") {
         addTrack("Not Playing", "Check back later", lastAlbumArtRef.current);
@@ -146,10 +149,10 @@ export default function NowPlayingArt() {
     } catch (e) {
       console.error("Last.fm fetch error:", e);
     }
-  }
+  }, [lastfmURL, getAlbumArt, addTrack, updateCoverUrl]);
 
-  /* ───────── zoom helpers (unchanged) ───────── */
-  const startZoom = () => {
+  /* ───────── zoom helpers (optimized) ───────── */
+  const startZoom = useCallback(() => {
     if (zoomKeyPressedRef.current) return;
     
     const quadrant = Math.floor(Math.random() * 4) + 1;
@@ -161,29 +164,34 @@ export default function NowPlayingArt() {
     }, 12000);
     
     zoomTimeoutsRef.current.push(timeout);
-  };
+  }, []);
 
-  const onKey = (e: KeyboardEvent) => {
+  const onKey = useCallback((e: KeyboardEvent) => {
     if (e.key === 'z' || e.key === 'Z') {
       zoomKeyPressedRef.current = true;
       startZoom();
     }
-  };
+  }, [startZoom]);
 
-  const onKeyUp = (e: KeyboardEvent) => {
+  const onKeyUp = useCallback((e: KeyboardEvent) => {
     if (e.key === 'z' || e.key === 'Z') {
       zoomKeyPressedRef.current = false;
     }
-  };
+  }, []);
 
-  /* ───────── lifecycle setup (mostly unchanged) ───────── */
+  /* ───────── lifecycle setup (optimized) ───────── */
   useEffect(() => {
     updateNowPlaying();
-    const poll = setInterval(updateNowPlaying, 5000);
+    
+    // Use a more efficient polling interval for weak machines
+    const poll = setInterval(updateNowPlaying, 10000); // Increased from 5000ms
+    
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
-    const autoStart = setTimeout(startZoom, 2000);
-    autoZoomIntervalRef.current = setInterval(startZoom, 120000);
+    
+    // Delay auto-zoom start to reduce initial load
+    const autoStart = setTimeout(startZoom, 5000); // Increased from 2000ms
+    autoZoomIntervalRef.current = setInterval(startZoom, 180000); // Increased from 120000ms
 
     return () => {
       clearInterval(poll);
@@ -196,18 +204,21 @@ export default function NowPlayingArt() {
       window.removeEventListener("keyup", onKeyUp);
       if (lastBlobUrlRef.current) URL.revokeObjectURL(lastBlobUrlRef.current);
     };
-  }, []);
+  }, [updateNowPlaying, onKey, onKeyUp, startZoom]);
 
-  /* ───────── helpers for classes (unchanged) ───────── */
-  const zoomClass = zoomActive
-    ? `${styles.zooming} ${styles[`quadrant${zoomQuadrant}`]}`
-    : "";
+  /* ───────── helpers for classes (memoized) ───────── */
+  const zoomClass = useMemo(() => 
+    zoomActive
+      ? `${styles.zooming} ${styles[`quadrant${zoomQuadrant}`]}`
+      : "",
+    [zoomActive, zoomQuadrant]
+  );
 
   /* ───────── render ───────── */
   return (
     <>
       {/* mesh backdrop under everything */}
-      <MeshBackdrop src={coverUrl} />   {/* NEW */}
+      <MeshBackdrop src={coverUrl} />
 
       <main className={styles.main}>
         <div className={styles.artContainer}>
@@ -245,6 +256,7 @@ export default function NowPlayingArt() {
                   height={500}
                   alt="Album Art"
                   decoding="async"
+                  loading="lazy"
                   className={styles.albumImage}
                   style={{ objectFit: "fill" }}
                 />

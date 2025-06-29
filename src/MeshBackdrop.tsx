@@ -3,6 +3,7 @@ import {
   useRef,
   memo,
   type PropsWithChildren,
+  useCallback,
 } from "react";
 import MeshGradient from "mesh-gradient.js";
 import { useCoverPalette } from "./useCoverPalette";
@@ -29,39 +30,76 @@ function MeshBackdropBase({
   const palette   = useCoverPalette(src, getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const meshRef   = useRef<typeof MeshGradient | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-  /* mount & resize (Hi-DPI safe) */
-  useEffect(() => {
+  /* Optimized resize handler with throttling */
+  const handleResize = useCallback(() => {
     const cvs = canvasRef.current;
     if (!cvs) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const resize = () => {
-      cvs.width  = window.innerWidth  * dpr;
-      cvs.height = window.innerHeight * dpr;
-      cvs.style.width  = "100vw";
+    const width = window.innerWidth * dpr;
+    const height = window.innerHeight * dpr;
+    
+    // Only resize if dimensions actually changed
+    if (cvs.width !== width || cvs.height !== height) {
+      cvs.width = width;
+      cvs.height = height;
+      cvs.style.width = "100vw";
       cvs.style.height = "100vh";
-      meshRef.current?.setCanvasSize(cvs.width, cvs.height);
-    };
-    resize();
+      meshRef.current?.setCanvasSize(width, height);
+    }
+  }, []);
+
+  /* mount & resize (Hi-DPI safe) - optimized */
+  useEffect(() => {
+    const cvs = canvasRef.current;
+    if (!cvs) return;
+
+    // Initial setup
+    handleResize();
 
     /* draw once */
     const mesh = new MeshGradient();
     mesh.initGradient("#meshCanvas", palette);
     meshRef.current = mesh;
 
-    window.addEventListener("resize", resize);
+    // Use ResizeObserver for more efficient resize detection
+    if (window.ResizeObserver) {
+      resizeObserverRef.current = new ResizeObserver(() => {
+        // Throttle resize events
+        if (resizeObserverRef.current) {
+          clearTimeout((resizeObserverRef.current as any).timeout);
+          (resizeObserverRef.current as any).timeout = setTimeout(handleResize, 100);
+        }
+      });
+      resizeObserverRef.current.observe(document.body);
+    } else {
+      // Fallback to window resize for older browsers
+      window.addEventListener("resize", handleResize, { passive: true });
+    }
+
     return () => {
-      window.removeEventListener("resize", resize);
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      } else {
+        window.removeEventListener("resize", handleResize);
+      }
       mesh.disconnect();
     };
-  }, []);
+  }, [handleResize]);
 
-  /* recolour whenever the palette updates */
+  /* recolour whenever the palette updates - optimized */
   useEffect(() => {
-    if (!meshRef.current) return;
-    meshRef.current.changeGradientColors(palette);
-    meshRef.current.reGenerateCanvas();   // single redraw – still static
+    if (!meshRef.current || !palette.length) return;
+    
+    // Batch palette updates to reduce redraws
+    requestAnimationFrame(() => {
+      if (meshRef.current) {
+        meshRef.current.changeGradientColors(palette);
+        meshRef.current.reGenerateCanvas();
+      }
+    });
   }, [palette]);
 
   /* ── render ── */
@@ -72,9 +110,10 @@ function MeshBackdropBase({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 0,             // above <body>, beneath UI layers
+        zIndex: 0,
         filter: `blur(${blur}px)`,
         pointerEvents: "none",
+        willChange: "transform", // Optimize for animations
       }}
     />
   );

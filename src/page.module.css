@@ -1,4 +1,4 @@
-/* src/page.module.css — clean, no hidden control characters */
+/* src/page.module.css — optimized for performance on weak machines */
 .main {
   display: flex;
   flex-direction: column;
@@ -7,6 +7,9 @@
   min-height: 100vh;
   overflow: hidden;
   background-color: transparent;
+  /* Optimize for GPU acceleration */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .artContainer {
@@ -17,9 +20,12 @@
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  /* Optimize for GPU acceleration */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
-/* Background art with blur effect */
+/* Background art with blur effect - optimized */
 .backgroundArt {
   position: absolute;
   top: -20%;
@@ -32,6 +38,8 @@
   transition: opacity 1s ease;
   will-change: opacity;
   z-index: 1;
+  /* Optimize blur performance */
+  transform: translateZ(0);
 }
 
 .topBackgroundLayer { z-index: 2; }
@@ -49,6 +57,8 @@
   transition: transform 0.5s ease;
   transform-origin: center;
   will-change: transform;
+  /* Optimize for GPU acceleration */
+  transform: translateZ(0);
 }
 
 .imageLayer {
@@ -59,6 +69,8 @@
   align-items: center;
   transition: opacity 1s ease;
   will-change: opacity;
+  /* Optimize for GPU acceleration */
+  transform: translateZ(0);
 }
 
 .albumImage {
@@ -67,25 +79,49 @@
   object-fit: fill;
   border-radius: 12px;
   backface-visibility: hidden;
+  /* Optimize image rendering */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
 .topLayer { z-index: 2; opacity: 1; }
 .bottomLayer { z-index: 1; opacity: 0; }
 .transitioning .bottomLayer { opacity: 0; }
 
-/*  Zoom animation */
-.zooming { transition: transform 12s ease; }
+/* Zoom animation - optimized for performance */
+.zooming { 
+  transition: transform 12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
 
-.quadrant1 { transform: scale(1.8) translate(12%, 18.6%); }
-.quadrant2 { transform: scale(1.8) translate(-12%, 18.6%); }
-.quadrant3 { transform: scale(1.8) translate(-12%, -18.6%); }
-.quadrant4 { transform: scale(1.8) translate(12%, -18.6%); }
+.quadrant1 { transform: scale(1.8) translate(12%, 18.6%) translateZ(0); }
+.quadrant2 { transform: scale(1.8) translate(-12%, 18.6%) translateZ(0); }
+.quadrant3 { transform: scale(1.8) translate(-12%, -18.6%) translateZ(0); }
+.quadrant4 { transform: scale(1.8) translate(12%, -18.6%) translateZ(0); }
 
-/* Mobile tweaks */
+/* Mobile tweaks - optimized */
 @media (max-width: 768px) {
-  .imageWrapper { width: 85vw; height: 54.8vw; }
-  .quadrant1 { transform: scale(1.7) translate(11%, 17%); }
-  .quadrant2 { transform: scale(1.7) translate(-11%, 17%); }
-  .quadrant3 { transform: scale(1.7) translate(-11%, -17%); }
-  .quadrant4 { transform: scale(1.7) translate(11%, -17%); }
+  .imageWrapper { 
+    width: 85vw; 
+    height: 54.8vw; 
+  }
+  .quadrant1 { transform: scale(1.7) translate(11%, 17%) translateZ(0); }
+  .quadrant2 { transform: scale(1.7) translate(-11%, 17%) translateZ(0); }
+  .quadrant3 { transform: scale(1.7) translate(-11%, -17%) translateZ(0); }
+  .quadrant4 { transform: scale(1.7) translate(11%, -17%) translateZ(0); }
+}
+
+/* Performance optimizations for very weak devices */
+@media (max-width: 480px) {
+  .backgroundArt {
+    filter: blur(25px); /* Reduce blur for better performance */
+  }
+  
+  .zooming {
+    transition: transform 8s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Faster animation */
+  }
+  
+  .quadrant1, .quadrant2, .quadrant3, .quadrant4 {
+    transform: scale(1.5) translate(8%, 12%) translateZ(0); /* Smaller scale */
+  }
 }
