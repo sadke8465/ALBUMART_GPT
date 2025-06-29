@@ -1,27 +1,45 @@
-name: Build & Deploy to GitHub PagesAdd commentMore actions
-on:
+name: Deploy to GitHub Pages
 
-  push: { branches: [main] }
+on:
+  # Build on every push to the default branch
+  push:
+    branches: [ "main" ]
+  # and when you trigger it manually
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions: { contents: read, pages: write, id-token: write }
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: "npm" }
-      - run: npm ci
-      - run: npm run build
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci              # install from package-lock.json
+      - run: npm run build       # vite build → dist
+
       - uses: actions/upload-pages-artifact@v3
-        with: { path: dist }
+        with:
+          path: dist             # vite’s default output dir
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    permissions: { pages: write, id-token: write }
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
