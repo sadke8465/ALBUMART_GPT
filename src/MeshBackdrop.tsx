@@ -9,20 +9,25 @@ import { useCoverPalette } from "./useCoverPalette";
 
 /* ───────── props ───────── */
 export interface MeshBackdropProps {
+  /** Current cover-art URL (CORS-friendly). */
+  src: string | null;
+  /** Optional custom colour-extraction function. */
   getPalette?: (img: HTMLImageElement) => string[];
-  blur?: number; // px  (default 80)
+  /** CSS blur radius in px (default = 80). */
+  blur?: number;
 }
 
 /* ───────── component ───────── */
 function MeshBackdropBase({
+  src,
   getPalette,
   blur = 80,
 }: PropsWithChildren<MeshBackdropProps>) {
-  const palette   = useCoverPalette(getPalette);
+  const palette   = useCoverPalette(src, getPalette);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const meshRef   = useRef<MeshGradient | null>(null);
 
-  /* ── mount & resize (Hi-DPI-safe) ── */
+  /* mount & resize (Hi-DPI safe) */
   useEffect(() => {
     const cvs = canvasRef.current;
     if (!cvs) return;
@@ -37,8 +42,9 @@ function MeshBackdropBase({
     };
     resize();
 
+    /* draw once */
     const mesh = new MeshGradient();
-    mesh.initGradient("#meshCanvas", palette); // draw once
+    mesh.initGradient("#meshCanvas", palette);
     meshRef.current = mesh;
 
     window.addEventListener("resize", resize);
@@ -46,12 +52,13 @@ function MeshBackdropBase({
       window.removeEventListener("resize", resize);
       mesh.disconnect();
     };
-  }, []); // mount once
+  }, []);
 
-  /* recolor whenever palette changes (still just one draw) */
+  /* recolour whenever the palette updates */
   useEffect(() => {
-    meshRef.current?.changeGradientColors(palette);
-    meshRef.current?.reGenerateCanvas();      // redraw with new colors
+    if (!meshRef.current) return;
+    meshRef.current.changeGradientColors(palette);
+    meshRef.current.reGenerateCanvas();   // single redraw – still static
   }, [palette]);
 
   /* ── render ── */
@@ -62,7 +69,7 @@ function MeshBackdropBase({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 0,              // sits above <body>, beneath UI layers
+        zIndex: 0,             // above <body>, beneath UI layers
         filter: `blur(${blur}px)`,
         pointerEvents: "none",
       }}
